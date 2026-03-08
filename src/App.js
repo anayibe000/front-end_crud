@@ -1,94 +1,261 @@
-// Importamos React y los hooks necesarios
+// Importación de React y hooks
 import React, { useState, useEffect } from "react";
 
-// Importamos los componentes hijos que conforman nuestra aplicación
+// Importación de componentes de la aplicación
 import EmployeeForm from "./components/EmployeeForm";
 import EmployeeList from "./components/EmployeeList";
-import './App.css'; // Estilos globales opcionales
+import UsuarioForm from "./components/UsuarioForm";
+import UsuarioList from "./components/UsuarioList";
+import ProductoForm from "./components/ProductoForm";
+import ProductoList from "./components/ProductoList";
+
+import "./App.css";
 
 /**
- * Componente principal: App
- * -------------------------
- * Este componente orquesta toda la aplicación de Gestión de Empleados.
- * Se encarga de manejar el estado compartido entre EmployeeForm y EmployeeList.
- *
- * Funcionalidades:
- *  - Permite seleccionar un empleado para editarlo.
- *  - Limpia el formulario después de guardar.
- *  - Renderiza el formulario y la lista de empleados.
+ * Componente principal de la aplicación.
+ * Maneja autenticación con JWT y la gestión de empleados,
+ * usuarios y productos.
  */
 function App() {
+  // Estados de autenticación
+  const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = "";
 
-  // -------------------- ESTADO PRINCIPAL --------------------
-  // selectedEmployee almacena el empleado que se está editando actualmente.
-  // Si es null, el formulario se usa para crear un nuevo empleado.
+  // Estados de datos
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-
-  // -------------------- ESTADO LISTA EMPLEADOS --------------------
-  // employees almacena la lista de empleados obtenida desde la API.
   const [employees, setEmployees] = useState([]);
 
-  // -------------------- FUNCIÓN: CONSULTAR EMPLEADOS --------------------
-  // Obtiene todos los empleados desde la API y actualiza el estado.
+  const [selectedUsuario, setSelectedUsuario] = useState(null);
+  const [usuarios, setUsuarios] = useState([]);
+
+  const [selectedProducto, setSelectedProducto] = useState(null);
+  const [productos, setProductos] = useState([]);
+
+  // Headers con token para peticiones protegidas
+  const getAuthHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  });
+
+  // -------- LOGIN --------
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError("");
+
+    try {
+      const res = await fetch("http://localhost:3000/api/usuarios/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setLoginError(data.message || "Error en login");
+        return;
+      }
+
+      localStorage.setItem("token", data.token);
+      setToken(data.token);
+
+      setLoginEmail("");
+      setLoginPassword("");
+
+      setTimeout(() => {
+        fetchEmployees();
+        fetchUsuarios();
+        fetchProductos();
+      }, 500);
+    } catch (err) {
+      setLoginError("Error de conexión");
+      console.error(err);
+    }
+  };
+
+  // -------- LOGOUT --------
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setToken("");
+    setEmployees([]);
+    setUsuarios([]);
+    setProductos([]);
+  };
+
+  // -------- CONSULTAS A LA API --------
   const fetchEmployees = () => {
-    fetch("http://localhost:3000/api/empleados")
-      .then(res => res.json())
-      .then(data => setEmployees(data))
-      .catch(err => console.error("Error:", err));
+    if (!token) return;
+
+    fetch("http://localhost:3000/api/empleados", {
+      headers: getAuthHeaders(),
+    })
+      .then((res) => res.json())
+      .then((data) => setEmployees(data))
+      .catch((err) => console.error(err));
   };
 
-  // -------------------- useEffect INICIAL --------------------
-  // Se ejecuta al cargar la aplicación por primera vez
-  // y obtiene la lista de empleados desde el backend.
+  const fetchUsuarios = () => {
+    if (!token) return;
+
+    fetch("http://localhost:3000/api/usuarios", {
+      headers: getAuthHeaders(),
+    })
+      .then((res) => res.json())
+      .then((data) => setUsuarios(Array.isArray(data) ? data : []))
+      .catch(() => setUsuarios([]));
+  };
+
+  const fetchProductos = () => {
+    if (!token) return;
+
+    fetch("http://localhost:3000/api/productos", {
+      headers: getAuthHeaders(),
+    })
+      .then((res) => res.json())
+      .then((data) => setProductos(Array.isArray(data) ? data : []))
+      .catch(() => setProductos([]));
+  };
+
+  // Cargar datos cuando existe token
   useEffect(() => {
-    fetchEmployees();
-  }, []);
+    if (token) {
+      fetchEmployees();
+      fetchUsuarios();
+      fetchProductos();
+    }
+  }, [token]);
 
-  // -------------------- FUNCIÓN: EDITAR --------------------
-  /**
-   * handleEdit se ejecuta cuando el usuario hace clic en "Editar" desde EmployeeList.
-   * Recibe un objeto empleado y lo almacena en el estado selectedEmployee.
-   * Esto hace que EmployeeForm cargue sus datos para editar.
-   */
-  const handleEdit = (employee) => {
-    setSelectedEmployee(employee);
-  };
-
-  // -------------------- FUNCIÓN: GUARDAR COMPLETADO --------------------
-  /**
-   * handleSaveComplete se ejecuta cuando el formulario termina de guardar o actualizar
-   * un empleado correctamente. Limpia el estado selectedEmployee para resetear el formulario
-   * y recarga la lista de empleados desde la API.
-   */
+  // Acciones después de guardar
   const handleSaveComplete = () => {
     setSelectedEmployee(null);
-    fetchEmployees(); // 🔥 Refresca la tabla automáticamente
+    fetchEmployees();
   };
 
-  // -------------------- RENDERIZADO --------------------
-  // Estructura visual principal de la aplicación.
+  const handleSaveUsuarioComplete = () => {
+    setSelectedUsuario(null);
+    fetchUsuarios();
+  };
+
+  const handleSaveProductoComplete = () => {
+    setSelectedProducto(null);
+    fetchProductos();
+  };
+
+  // -------- PANTALLA DE LOGIN --------
+  if (!token) {
+    return (
+      <div className="container-main">
+        <h1>Sistema de Gestión CRUD</h1>
+
+        <div
+          className="card"
+          style={{ maxWidth: "400px", margin: "50px auto" }}
+        >
+          <h2>Iniciar Sesión</h2>
+
+          {loginError && (
+            <p style={{ color: "red", marginBottom: "10px" }}>
+              ⚠️ {loginError}
+            </p>
+          )}
+
+          <form onSubmit={handleLogin}>
+            <input
+              type="email"
+              placeholder="Email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              required
+            />
+
+            <input
+              type="password"
+              placeholder="Contraseña"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              required
+            />
+
+            <button type="submit">Entrar</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // -------- INTERFAZ PRINCIPAL --------
   return (
-    <div className="container-main">
+    <div>
+      <div className="container-main">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "20px",
+          }}
+        >
+          <h1>Sistema de Gestión CRUD</h1>
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: "10px 20px",
+              backgroundColor: "#dc3545",
+              color: "white",
+              border: "none",
+              borderRadius: "5px",
+              cursor: "pointer",
+            }}
+          >
+            Logout
+          </button>
+        </div>
 
-      {/* Título principal */}
-      <h1>Gestión de Empleados</h1>
+        <h2>Gestión de Empleados</h2>
+        <EmployeeForm
+          employeeToEdit={selectedEmployee}
+          onSaveComplete={handleSaveComplete}
+        />
+        <EmployeeList
+          employees={employees}
+          onEdit={(emp) => setSelectedEmployee(emp)}
+          onDeleted={fetchEmployees}
+        />
 
-      {/* Formulario de creación/edición */}
-      <EmployeeForm
-        employeeToEdit={selectedEmployee}       // Prop: empleado actual a editar
-        onSaveComplete={handleSaveComplete}     // Prop: callback al guardar
-      />
+        <hr style={{ margin: "40px 0", borderColor: "#ccc" }} />
 
-      {/* Lista de empleados */}
-      <EmployeeList
-        employees={employees}                   // 🔥 lista actualizada desde App
-        onEdit={handleEdit}                     // Prop: función que se ejecuta al editar
-        onDeleted={fetchEmployees}              // 🔥 recarga tras eliminar
-      />
+        <h2>Gestión de Usuarios</h2>
+        <UsuarioForm
+          usuarioToEdit={selectedUsuario}
+          onSaveComplete={handleSaveUsuarioComplete}
+          token={token}
+        />
+        <UsuarioList
+          usuarios={usuarios}
+          onEdit={(usuario) => setSelectedUsuario(usuario)}
+          onDeleted={fetchUsuarios}
+          token={token}
+        />
 
+        <hr style={{ margin: "40px 0", borderColor: "#ccc" }} />
+
+        <h2>Gestión de Productos</h2>
+        <ProductoForm
+          productoToEdit={selectedProducto}
+          onSaveComplete={handleSaveProductoComplete}
+          token={token}
+        />
+        <ProductoList
+          productos={productos}
+          onEdit={(producto) => setSelectedProducto(producto)}
+          onDeleted={fetchProductos}
+          token={token}
+        />
+      </div>
     </div>
   );
 }
 
-// Exportamos el componente para que sea usado en index.js
 export default App;
