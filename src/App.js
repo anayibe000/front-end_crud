@@ -21,7 +21,7 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [loginError, setLoginError] = "";
+  const [loginError, setLoginError] = useState("");
 
   // Estados de datos
   const [selectedEmployee, setSelectedEmployee] = useState(null);
